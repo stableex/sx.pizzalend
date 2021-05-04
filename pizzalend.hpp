@@ -85,12 +85,12 @@ namespace pizzalend {
         return { };
     }
 
-    static extended_asset unwrap( const asset& pzqty ) {
+    static extended_asset unwrap( const asset& pzqty, bool ignore_deposit = false ) {
         pztoken pztoken_tbl(code, code.value);
         for(const auto& row: pztoken_tbl) {
             if(row.pzsymbol.get_symbol() == pzqty.symbol) {
                 int64_t amount_out = row.pzprice * pzqty.amount;
-                if(amount_out > row.available_deposit.amount) amount_out = 0;
+                if(amount_out > row.available_deposit.amount && !ignore_deposit) amount_out = 0;
                 return { amount_out, row.anchor };
             }
         }
