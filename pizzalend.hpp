@@ -13,6 +13,15 @@ namespace pizzalend {
     const std::string description = "Lend.Pizza Converter";
     const name token_code = "pztken.pizza"_n;
 
+    static const map<symbol_code, name> PZ_KEYS= {
+        { symbol_code{"PZUSDT"}, "pzusdt"_n },
+        { symbol_code{"USDT"}, "pzusdt"_n },
+        { symbol_code{"PZUSN"}, "pzusn"_n },
+        { symbol_code{"USN"}, "pzusn"_n },
+        { symbol_code{"PZOUSD"}, "pzousd"_n },
+        { symbol_code{"OUSD"}, "pzousd"_n }
+    };
+
     struct pztoken_config {
         asset           base_rate;
         asset           max_rate;
@@ -52,8 +61,8 @@ namespace pizzalend {
         pztoken_config  config;
 
         uint64_t primary_key() const { return pztoken.value; }
-        uint128_t get_secondary1() const { return 0; }          //unknown
-        uint128_t get_by_anchor() const { return static_cast<uint128_t>(anchor.get_contract().value) << 8 | anchor.get_symbol().code().raw(); }
+        uint128_t get_secondary1() const { return 0; }          // unknown
+        uint128_t get_by_anchor() const { return static_cast<uint128_t>(anchor.get_contract().value) << 8 | anchor.get_symbol().code().raw(); }     // wrong
         uint64_t get_by_borrowliqorder() const { return config.borrow_liqdt_order; }
         uint64_t get_by_collatliqorder() const { return config.collateral_liqdt_order; }
     };
@@ -76,6 +85,15 @@ namespace pizzalend {
     static extended_asset wrap( const asset& quantity ) {
 
         pztoken pztoken_tbl(code, code.value);
+
+        // if we know pztoken name - use primary key for speed
+        // TODO: figure out secondary key to pull by anchor (?)
+        if( PZ_KEYS.count(quantity.symbol.code()) ){
+            const auto& row = pztoken_tbl.get( PZ_KEYS.at(quantity.symbol.code()).value, "pizzalend: not lendable");
+            return { static_cast<int64_t>( quantity.amount / row.pzprice ), row.pzsymbol };
+        }
+
+        // otherwise - just iterate
         for(const auto& row: pztoken_tbl) {
             if(row.anchor.get_symbol() == quantity.symbol) {
                 return { static_cast<int64_t>( quantity.amount / row.pzprice ), row.pzsymbol };
@@ -85,8 +103,19 @@ namespace pizzalend {
         return { };
     }
 
-    static extended_asset unwrap( const asset& pzqty, bool ignore_deposit = false ) {
+    static extended_asset unwrap( const asset& pzqty, bool ignore_deposit = false) {
         pztoken pztoken_tbl(code, code.value);
+
+        // if we know pztoken name - use primary key for speed
+        // TODO: figure out secondary key to pull by pztoken (?)
+        if( PZ_KEYS.count(pzqty.symbol.code()) ){
+            const auto& row = pztoken_tbl.get( PZ_KEYS.at(pzqty.symbol.code()).value, "pizzalend: not redeemable");
+            int64_t amount_out = row.pzprice * pzqty.amount;
+            if(amount_out > row.available_deposit.amount && !ignore_deposit) amount_out = 0;
+            return { amount_out, row.anchor };
+        }
+
+        // otherwise - just iterate
         for(const auto& row: pztoken_tbl) {
             if(row.pzsymbol.get_symbol() == pzqty.symbol) {
                 int64_t amount_out = row.pzprice * pzqty.amount;
