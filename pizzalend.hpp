@@ -62,7 +62,7 @@ namespace pizzalend {
 
         uint64_t primary_key() const { return pztoken.value; }
         uint128_t get_secondary1() const { return 0; }          // unknown
-        uint128_t get_by_anchor() const { return static_cast<uint128_t>(anchor.get_contract().value) << 8 | anchor.get_symbol().code().raw(); }     // wrong
+        uint128_t get_by_anchor() const { return static_cast<uint128_t>(anchor.get_contract().value) << 64 | anchor.get_symbol().code().raw(); }     // wrong
         uint64_t get_by_borrowliqorder() const { return config.borrow_liqdt_order; }
         uint64_t get_by_collatliqorder() const { return config.collateral_liqdt_order; }
     };
