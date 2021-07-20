@@ -98,7 +98,7 @@ namespace pizzalend {
         name pzname;
         asset principal;
         asset quantity;
-        uint8_t type;
+        uint8_t type;           //1 = variable rate, 2 = fixed rate
         asset fixed_rate;
         uint64_t turn_variable_countdown;
         uint64_t last_calculated_at;
@@ -150,6 +150,12 @@ namespace pizzalend {
             }
         }
         return {};
+    }
+
+    static extended_symbol get_anchor( const name pzname) {
+        pztoken pztoken_tbl( code, code.value);
+        const auto it = pztoken_tbl.find( pzname.value );
+        return it == pztoken_tbl.end() ? extended_symbol{} : it->anchor;
     }
 
     static extended_asset wrap( const asset& quantity ) {
@@ -299,17 +305,118 @@ namespace pizzalend {
         while( it != index.end() ) {
             if( it->account != account) break;
             const auto pztokens = it->quantity;
-            print("\nColl: ", pztokens);
             const auto ext_tokens = unwrap(pztokens);
-            print(" == ", ext_tokens.quantity);
             const auto [ value, ratioed_value ] = get_oraclized_value(ext_tokens, it->pzname);
-            print(" == $", (int)value, " (", (int)ratioed_value, ")");
-
             res.push_back({ ext_tokens, value, ratioed_value });
             ++it;
         }
 
         return res;
+    }
+
+        /**
+     * ## STATIC `get_loans`
+     *
+     * Given an account name return loans and their values
+     *
+     * ### params
+     *
+     * - `{name} account` - account
+     *
+     * ### example
+     *
+     * ```c++
+     * // Inputs
+     * const name account = "myusername";
+     *
+     * // Calculation
+     * const vector<StOraclizedAsset> collaterals = pizzalend::get_loans( account );
+     * // => { {"400 USDT", 400, 300}, {"100 EOS", 500, 375} }
+     * ```
+     */
+    static vector<OraclizedAsset> get_loans( const name account )
+    {
+        vector<OraclizedAsset> res;
+        loan_table _table( code, code.value);
+        auto index = _table.get_index<"byaccount"_n>();
+        auto it = index.lower_bound(account.value);
+        while( it != index.end() ) {
+            if( it->account != account) break;
+            // TODO: take interest accrued since last update into account
+            // using precision x10000, so we adjust and round up
+            const auto tokens = asset{ it->quantity.amount / 10000 + 1, it->principal.symbol };
+            const auto ext_sym = get_anchor(it->pzname);
+            const extended_asset ext_tokens = { tokens, ext_sym.get_contract() };
+            const auto [ value, ratioed_value ] = get_oraclized_value(ext_tokens, it->pzname);
+            res.push_back({ ext_tokens, value, value });
+            ++it;
+        }
+
+        return res;
+    }
+
+    /**
+     * ## STATIC `get_health_factor`
+     *
+     * Given an loans and collaterals return health factor
+     *
+     * ### params
+     *
+     * - `{vector<OraclizedAsset>} loans` - loans
+     * - `{vector<OraclizedAsset>} collaterals` - collaterals
+     *
+     * ### example
+     *
+     * ```c++
+     * // Inputs
+     * const vector<OraclizedAsset> loans = { {"400 USDT", 400, 400}, {"100 EOS", 500, 500} };
+     * const vector<OraclizedAsset> collaterals = { {"500 USDT", 700, 300}, {"200 EOS", 600, 375} };
+     *
+     * // Calculation
+     * const double health_factor = pizzalend::get_health_factor( loans, collaterals );
+     * // => 1.2345
+     * ```
+     */
+    static double get_health_factor( const vector<OraclizedAsset>& loans, const vector<OraclizedAsset>& collaterals )
+    {
+        double deposited = 0, loaned = 0;
+        for(const auto coll: collaterals){
+            deposited += coll.ratioed;
+        }
+
+        for(const auto loan: loans){
+            loaned += loan.value;
+        }
+        return loaned == 0 ? 0 : deposited / loaned;
+    }
+
+
+    /**
+     * ## STATIC `get_health_factor`
+     *
+     * Given an account name return user health factor
+     *
+     * ### params
+     *
+     * - `{name} account` - account
+     *
+     * ### example
+     *
+     * ```c++
+     * // Inputs
+     * const name account = "myusername";
+     *
+     * // Calculation
+     * const double health_factor = pizzalend::get_health_factor( account );
+     * // => 1.2345
+     * ```
+     */
+    static double get_health_factor( const name account )
+    {
+        const auto collaterals = pizzalend::get_collaterals(account);
+        const auto loans = pizzalend::get_loans(account);
+
+        return pizzalend::get_health_factor(loans, collaterals);
     }
 
 }
