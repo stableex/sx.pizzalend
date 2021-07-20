@@ -13,6 +13,12 @@ namespace pizzalend {
     const std::string description = "Lend.Pizza Converter";
     const name token_code = "pztken.pizza"_n;
 
+    struct OraclizedAsset {
+        extended_asset tokens;
+        double value;
+        double ratioed;
+    };
+
     static const map<symbol_code, name> PZ_KEYS= {
         { symbol_code{"PZUSDT"}, "pzusdt"_n },
         { symbol_code{"USDT"}, "pzusdt"_n },
@@ -224,8 +230,86 @@ namespace pizzalend {
             if(out.symbol == out_sym) return out;
         }
 
-        check(false, "sx.pizzalend: Not B-token");
+        check(false, "sx.pizzalend: Not pz-token");
         return {};
+    }
+
+    /**
+     * ## STATIC `get_oraclized_value`
+     *
+     * Given tokens return oraclized value and ratioed liquidation value
+     *
+     * ### params
+     *
+     * - `{extended_asset} tokens` - tokens, i.e. "1000.0000 USDT@tethertether"
+     * - `{name} pzname` - pz name, i.e. "pzusdt"_n
+     *
+     * ### example
+     *
+     * ```c++
+     * // Inputs
+     * const asset tokens = "1000.0000 USDT@tethertether"
+     * const name pzname = "pzusdt";
+     *
+     * // Calculation
+     * const double [ value, liq_value ] = pizzalend::get_oraclized_value( tokens, pzname );
+     * // => [ 1000.0, 800.0]
+     * ```
+     */
+    static pair<double, double> get_oraclized_value( const extended_asset ext_tokens, const name pzname )
+    {
+        collateral_table _table( code, code.value);
+        pztoken pztoken_tbl( code, code.value);
+        const auto row = pztoken_tbl.get(pzname.value, "pizzalend: get_oraclized_value(): invalid pzname");
+        check(row.anchor == ext_tokens.get_extended_symbol(), "pizzalend: get_oraclized_value(): invalid pzname/asset combo" );
+
+        const double price = row.price.amount / pow(10, row.price.symbol.precision());
+        const double token_value = ext_tokens.quantity.amount / pow(10, ext_tokens.quantity.symbol.precision()) * price;
+        const double liq_rate = row.config.liqdt_rate.amount / pow(10, row.config.liqdt_rate.symbol.precision());
+
+        return { token_value, token_value * liq_rate };
+    }
+
+    /**
+     * ## STATIC `get_collaterals`
+     *
+     * Given an account name return collaterals and their values
+     *
+     * ### params
+     *
+     * - `{name} account` - account
+     *
+     * ### example
+     *
+     * ```c++
+     * // Inputs
+     * const name account = "myusername";
+     *
+     * // Calculation
+     * const vector<StOraclizedAsset> collaterals = pizzalend::get_collaterals( account );
+     * // => { {"400 USDT", 400, 300}, {"100 EOS", 500, 375} }
+     * ```
+     */
+    static vector<OraclizedAsset> get_collaterals( const name account )
+    {
+        vector<OraclizedAsset> res;
+        collateral_table _table( code, code.value);
+        auto index = _table.get_index<"byaccount"_n>();
+        auto it = index.lower_bound(account.value);
+        while( it != index.end() ) {
+            if( it->account != account) break;
+            const auto pztokens = it->quantity;
+            print("\nColl: ", pztokens);
+            const auto ext_tokens = unwrap(pztokens);
+            print(" == ", ext_tokens.quantity);
+            const auto [ value, ratioed_value ] = get_oraclized_value(ext_tokens, it->pzname);
+            print(" == $", (int)value, " (", (int)ratioed_value, ")");
+
+            res.push_back({ ext_tokens, value, ratioed_value });
+            ++it;
+        }
+
+        return res;
     }
 
 }
