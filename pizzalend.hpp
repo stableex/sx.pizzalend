@@ -68,6 +68,70 @@ namespace pizzalend {
     };
     typedef eosio::multi_index< "pztoken"_n, pztoken_row > pztoken;
 
+    struct [[eosio::table]] collateral_row {
+        uint64_t id;
+        name account;
+        name pzname;
+        asset quantity;
+        uint64_t updated_at;
+
+        uint64_t primary_key() const { return id; }
+        uint64_t get_by_account() const { return account.value; }
+        uint64_t get_by_pzname() const { return pzname.value; }
+        uint128_t get_by_accpzname() const { return static_cast<uint128_t>(account.value) << 64 | pzname.value; }
+    };
+    typedef eosio::multi_index< "collateral"_n, collateral_row,
+        indexed_by< "byaccount"_n, const_mem_fun<collateral_row, uint64_t, &collateral_row::get_by_account> >,
+        indexed_by< "bypzname"_n, const_mem_fun<collateral_row, uint64_t, &collateral_row::get_by_pzname> >,
+        indexed_by< "byaccpzname"_n, const_mem_fun<collateral_row, uint128_t, &collateral_row::get_by_accpzname> >
+    > collateral_table;
+
+    struct [[eosio::table]] loan_row {
+        uint64_t id;
+        name account;
+        name pzname;
+        asset principal;
+        asset quantity;
+        uint8_t type;
+        asset fixed_rate;
+        uint64_t turn_variable_countdown;
+        uint64_t last_calculated_at;
+        uint64_t updated_at;
+
+        uint64_t primary_key() const { return id; }
+        uint64_t get_by_account() const { return account.value; }
+        uint64_t get_by_pzname() const { return pzname.value; }
+        uint128_t get_by_accpzname() const { return static_cast<uint128_t>(account.value) << 64 | pzname.value; }
+    };
+    typedef eosio::multi_index< "loan"_n, loan_row,
+        indexed_by< "byaccount"_n, const_mem_fun<loan_row, uint64_t, &loan_row::get_by_account> >,
+        indexed_by< "bypzname"_n, const_mem_fun<loan_row, uint64_t, &loan_row::get_by_pzname> >,
+        indexed_by< "byaccpzname"_n, const_mem_fun<loan_row, uint128_t, &loan_row::get_by_accpzname> >
+    > loan_table;
+
+    struct [[eosio::table]] cachedhealth_row {
+        name account;
+        double_t loan_value;
+        double_t collateral_value;
+        double_t factor;
+        uint64_t updated_at;
+
+        uint64_t primary_key() const { return account.value; }
+    };
+    typedef eosio::multi_index< "cachedhealth"_n, cachedhealth_row > cachedhealth_table;
+
+    struct [[eosio::table]] liqdtorder_row {
+        uint64_t        id;
+        name            account;
+        extended_asset  collateral;
+        extended_asset  loan;
+        uint64_t        liqdted_at;
+        uint64_t        updated_at;
+
+        uint64_t primary_key() const { return id; }
+    };
+    typedef eosio::multi_index< "liqdtorder"_n, liqdtorder_row > liqdtorder;
+
     static bool is_pztoken( const symbol& sym ) {
         return utils::get_supply({ sym, token_code }).symbol.is_valid();
     }
