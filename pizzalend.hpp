@@ -152,6 +152,17 @@ namespace pizzalend {
         return {};
     }
 
+    static pztoken_row get_reserve( const extended_symbol& anchor_ext_sym) {
+        pztoken pztoken_tbl( code, code.value);
+        for(const auto& row: pztoken_tbl) {
+            if(row.anchor == anchor_ext_sym) {
+                return row;
+            }
+        }
+        check(false, "pizzalend::get_reserve(): anchor doesn't exist");
+        return {};
+    }
+
     static extended_symbol get_anchor( const name pzname) {
         pztoken pztoken_tbl( code, code.value);
         const auto it = pztoken_tbl.find( pzname.value );
@@ -417,6 +428,65 @@ namespace pizzalend {
         const auto loans = pizzalend::get_loans(account);
 
         return pizzalend::get_health_factor(loans, collaterals);
+    }
+
+    /**
+     * ## STATIC `get_liquidation_out`
+     *
+     * Calculate collateral tokens to receive when liquidating {ext_in} debt
+     *
+     * ### params
+     *
+     * - `{extended_asset} ext_in` - amount of debt to liquidate
+     * - `{extended_symbol} ext_sym_out` - desired collateral to receive
+     * - `{vector<OraclizedAsset>} loans` - user loans
+     * - `{vector<OraclizedAsset>} collaterals` - user collaterals
+     *
+     * ### example
+     *
+     * ```c++
+     * // Inputs
+     * const extended_asset ext_in = { "400 USDT@tethertether" };
+     * const extended_symbol ext_sym_out = { "4,EOS@eosio.token" };
+     * const vector<OraclizedAsset> loans = { {"400 USDT", 400, 400}, {"100 EOS", 500, 500} };
+     * const vector<OraclizedAsset> collaterals = { {"500 USDT", 700, 300}, {"200 EOS", 600, 375} };
+     *
+     * // Calculation
+     * const auto out = pizzalend::get_liquidation_out( ext_in, ext_sym_out, loans, collaterals );
+     * // => 100 EOS
+     * ```
+     */
+    static extended_asset get_liquidation_out( const extended_asset ext_in, const extended_symbol ext_sym_out, const vector<OraclizedAsset>& loans, const vector<OraclizedAsset>& collaterals )
+    {
+        const auto hf = get_health_factor(loans, collaterals);
+        if(hf >= 1) return { 0, ext_sym_out };
+
+        double loans_value = 0;
+        extended_asset loan_to_liquidate, coll_to_get;
+        for(const auto loan: loans){
+            if(loan.tokens.get_extended_symbol() == ext_in.get_extended_symbol() ) loan_to_liquidate = loan.tokens;
+            loans_value += loan.value;
+        }
+        for(const auto coll: collaterals){
+            if(coll.tokens.get_extended_symbol() == ext_sym_out ) coll_to_get = coll.tokens;
+        }
+        if(loan_to_liquidate.quantity.amount == 0 || loan_to_liquidate < ext_in || coll_to_get.quantity.amount == 0)
+            return { 0, ext_sym_out };
+
+        const auto loan_res = get_reserve( ext_in.get_extended_symbol() );
+        const auto coll_res = get_reserve( ext_sym_out );
+        const double bonus = loan_res.config.liqdt_bonus.amount / pow(10, loan_res.config.liqdt_bonus.symbol.precision());
+        const double loan_price = loan_res.price.amount / pow(10, loan_res.price.symbol.precision());
+        const double coll_price = coll_res.price.amount / pow(10, coll_res.price.symbol.precision());
+        const double liq_value = ext_in.quantity.amount / pow(10, ext_in.quantity.symbol.precision()) * loan_price;
+        const double value_out = liq_value * (1 + bonus);
+        const int64_t out = value_out / coll_price * pow(10, coll_res.anchor.get_symbol().precision());
+
+        // print("\n  In: ", ext_in.quantity, " loan_price: ", loan_price, " coll_price: ", coll_price, " liq_value: ", liq_value, " value_out: ", value_out, " out: ", out);
+        if(liq_value > 0.49 * loans_value) return { 0, ext_sym_out };   //only 1/2 of loans allowed to liquidate, take 0.49 to be on the safe side
+        if(coll_to_get.quantity.amount < out) return { 0, ext_sym_out };   //can't get more than collateral
+
+        return { out, ext_sym_out };
     }
 
 }
