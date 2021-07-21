@@ -7,17 +7,12 @@ namespace pizzalend {
 
     using namespace eosio;
     using namespace sx;
+    using namespace sx::utils;
 
     const name id = "pizzalend"_n;
     const name code = "lend.pizza"_n;
     const std::string description = "Lend.Pizza Converter";
     const name token_code = "pztken.pizza"_n;
-
-    struct OraclizedAsset {
-        extended_asset tokens;
-        double value;
-        double ratioed;
-    };
 
     static const map<symbol_code, name> PZ_KEYS= {
         { symbol_code{"PZUSDT"}, "pzusdt"_n },
@@ -169,16 +164,20 @@ namespace pizzalend {
         return it == pztoken_tbl.end() ? extended_symbol{} : it->anchor;
     }
 
-    static vector<name> get_liq_accounts( const double min_value ){
+    static vector<liqdtorder_row> get_liq_accounts( const double min_value ){
         liqdtorder liqdtordertbl( code, code.value );
-        vector<name> res;
+        vector<liqdtorder_row> res;
         for(const auto& row: liqdtordertbl) {
             const auto loan_res = get_reserve( row.loan.get_extended_symbol() );
             const double loan_price = loan_res.price.amount / pow(10, loan_res.price.symbol.precision());
             const double liq_value = row.loan.quantity.amount / pow(10, row.loan.quantity.symbol.precision()) * loan_price;
-            if(liq_value > min_value) res.push_back(row.account);
+            if(liq_value > min_value) res.push_back(row);
         }
         return res;
+    }
+    static liqdtorder_row get_auction( const uint64_t id ){
+        liqdtorder liqdtordertbl( code, code.value );
+        return liqdtordertbl.get(id, "pizzalend: can't find auction");
     }
 
     static extended_asset wrap( const asset& quantity ) {
