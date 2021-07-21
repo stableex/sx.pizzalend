@@ -486,11 +486,11 @@ namespace pizzalend {
 
         const auto loan_res = get_reserve( ext_in.get_extended_symbol() );
         const auto coll_res = get_reserve( ext_sym_out );
-        const double bonus = loan_res.config.liqdt_bonus.amount / pow(10, loan_res.config.liqdt_bonus.symbol.precision());
+        const double bonus = coll_res.config.liqdt_bonus.amount / pow(10, coll_res.config.liqdt_bonus.symbol.precision());
         const double loan_price = loan_res.price.amount / pow(10, loan_res.price.symbol.precision());
         const double coll_price = coll_res.price.amount / pow(10, coll_res.price.symbol.precision());
         const double liq_value = ext_in.quantity.amount / pow(10, ext_in.quantity.symbol.precision()) * loan_price;
-        const double value_out = liq_value * (1 + bonus);
+        const double value_out = liq_value * (1 + bonus * 2/3);     // receiving 2/3 of the bonus
         const int64_t out = value_out / coll_price * pow(10, coll_res.anchor.get_symbol().precision());
 
         // print("\n  In: ", ext_in.quantity, " loan_price: ", loan_price, " coll_price: ", coll_price, " liq_value: ", liq_value, " value_out: ", value_out, " out: ", out);
