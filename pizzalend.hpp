@@ -9,10 +9,10 @@ namespace pizzalend {
     using namespace sx;
     using namespace sx::utils;
 
-    const name id = "pizzalend"_n;
-    const name code = "lend.pizza"_n;
+    constexpr name id = "pizzalend"_n;
+    constexpr name code = "lend.pizza"_n;
     const std::string description = "Lend.Pizza Converter";
-    const name token_code = "pztken.pizza"_n;
+    constexpr name token_code = "pztken.pizza"_n;
 
     static const map<symbol_code, name> PZ_KEYS= {
         { symbol_code{"PZUSDT"}, "pzusdt"_n },
@@ -173,10 +173,12 @@ namespace pizzalend {
             const double liq_value = row.loan.quantity.amount / pow(10, row.loan.quantity.symbol.precision()) * loan_price;
             if(liq_value > min_value) res.push_back(row);
         }
+        // res.push_back({97, "ouyezhe12345"_n, {asset{340'3844, symbol{"PZUSDC",4}}, "pztken.pizza"_n}, {asset{40'3687, symbol{"USDT",4}}, "tethertether"_n} });
         return res;
     }
     static liqdtorder_row get_auction( const uint64_t id ){
         liqdtorder liqdtordertbl( code, code.value );
+        // return {97, "ouyezhe12345"_n, {asset{340'3844, symbol{"PZUSDC",4}}, "pztken.pizza"_n}, {asset{40'3687, symbol{"USDT",4}}, "tethertether"_n} };
         return liqdtordertbl.get(id, "pizzalend: can't find auction");
     }
 
