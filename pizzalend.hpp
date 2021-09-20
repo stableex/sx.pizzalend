@@ -469,8 +469,9 @@ namespace pizzalend {
      */
     static extended_asset get_liquidation_out( const extended_asset ext_in, const extended_symbol ext_sym_out, const vector<OraclizedAsset>& loans, const vector<OraclizedAsset>& collaterals )
     {
-        const auto hf = get_health_factor(loans, collaterals);
-        if(hf >= 1) return { 0, ext_sym_out };
+        // no need to check health factor - if we are in the table then it's < 1
+        // const auto hf = get_health_factor(loans, collaterals);
+        // if(hf >= 1) return { 0, ext_sym_out };
 
         double loans_value = 0;
         extended_asset loan_to_liquidate, coll_to_get;
@@ -494,7 +495,7 @@ namespace pizzalend {
         const int64_t out = value_out / coll_price * pow(10, coll_res.anchor.get_symbol().precision());
 
         // print("\n  In: ", ext_in.quantity, " loan_price: ", loan_price, " coll_price: ", coll_price, " liq_value: ", liq_value, " value_out: ", value_out, " out: ", out);
-        if(liq_value > 0.49 * loans_value) return { 0, ext_sym_out };   //only 1/2 of loans allowed to liquidate, take 0.49 to be on the safe side
+        if(liq_value > loans_value) return { 0, ext_sym_out };
         if(coll_to_get.quantity.amount < out) return { 0, ext_sym_out };   //can't get more than collateral
 
         return { out, ext_sym_out };
