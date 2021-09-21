@@ -497,8 +497,8 @@ namespace pizzalend {
         const int64_t out = value_out / coll_price * pow(10, coll_res.anchor.get_symbol().precision());
 
         // print("\n  In: ", ext_in.quantity, " loan_price: ", loan_price, " coll_price: ", coll_price, " liq_value: ", liq_value, " value_out: ", value_out, " out: ", out);
-        if(liq_value > loans_value) return { 0, ext_sym_out };
-        if(coll_to_get.quantity.amount < out) return { 0, ext_sym_out };   //can't get more than collateral
+        if(liq_value > loans_value || coll_to_get.quantity.amount < out)
+            return { coll_to_get.quantity.amount, ext_sym_out };   //can't get more than collateral
 
         return { out, ext_sym_out };
     }
