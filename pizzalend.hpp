@@ -158,28 +158,49 @@ namespace pizzalend {
         return {};
     }
 
+    static asset get_available_deposit( const symbol& sym) {
+        pztoken pztoken_tbl(code, code.value);
+
+        // if we know pztoken name - use primary key for speed
+        if( PZ_KEYS.count(sym.code()) ){
+            const auto& row = pztoken_tbl.get( PZ_KEYS.at(sym.code()).value, "pizzalend::get_available_deposit: not redeemable");
+            return row.available_deposit;
+        }
+
+        check(false, "pizzalend::get_available_deposit: not redeemable: " + sym.code().to_string());
+        return { };
+    }
+
     static extended_symbol get_anchor( const name pzname) {
         pztoken pztoken_tbl( code, code.value);
         const auto it = pztoken_tbl.find( pzname.value );
         return it == pztoken_tbl.end() ? extended_symbol{} : it->anchor;
     }
 
+    static liqdtorder_row get_auction( const uint64_t id ){
+        liqdtorder liqdtordertbl( code, code.value );
+        //return {93, "nfq111111111"_n, {asset{	900109'9377, symbol{"PZKEY",4}}, "pztken.pizza"_n}, {asset{166'7878, symbol{"USDT",4}}, "tethertether"_n} };
+        //return {94, "zhuyifei1235"_n, {asset{464683025, symbol{"PZKEY",4}}, "pztken.pizza"_n}, {asset{164018, symbol{"USDT",4}}, "tethertether"_n} };
+        //return {93, "12345goldman"_n, {asset{18995'6975, symbol{"PZKEY",4}}, "pztken.pizza"_n}, {asset{6'7048, symbol{"USDT",4}}, "tethertether"_n} };
+        // return {97, "ouyezhe12345"_n, {asset{340'3844, symbol{"PZUSDC",4}}, "pztken.pizza"_n}, {asset{40'3687, symbol{"USDT",4}}, "tethertether"_n} };
+        //return {114, "xiaoqiang.tp"_n, {asset{528'8689, symbol{"PZUSDC",4}}, "pztken.pizza"_n}, {asset{40'4565, symbol{"USDT",4}}, "tethertether"_n} };
+        //return {113, "uiblts5wtxcf"_n, {asset{928'5995, symbol{"PZDFS",4}}, "pztken.pizza"_n}, {asset{2666'3027, symbol{"USDT",4}}, "tethertether"_n} };
+        //return {93, "wwwsssyyy123"_n, {asset{9416, symbol{"PZEOS",4}}, "pztken.pizza"_n}, {asset{392230405, symbol{"OUSD",8}}, "core.ogx"_n} };
+        return liqdtordertbl.get(id, "pizzalend: can't find auction");
+    }
+
     static vector<liqdtorder_row> get_liq_accounts( const double min_value ){
+        //return { pizzalend::get_auction(0) };
         liqdtorder liqdtordertbl( code, code.value );
         vector<liqdtorder_row> res;
         for(const auto& row: liqdtordertbl) {
+            if(row.collateral.quantity.symbol.code().to_string().find("PZUSDI") != string::npos) continue;  //disregard AIR lp tokens
             const auto loan_res = get_reserve( row.loan.get_extended_symbol() );
             const double loan_price = loan_res.price.amount / pow(10, loan_res.price.symbol.precision());
             const double liq_value = row.loan.quantity.amount / pow(10, row.loan.quantity.symbol.precision()) * loan_price;
             if(liq_value > min_value) res.push_back(row);
         }
-        // res.push_back({97, "ouyezhe12345"_n, {asset{340'3844, symbol{"PZUSDC",4}}, "pztken.pizza"_n}, {asset{40'3687, symbol{"USDT",4}}, "tethertether"_n} });
         return res;
-    }
-    static liqdtorder_row get_auction( const uint64_t id ){
-        liqdtorder liqdtordertbl( code, code.value );
-        // return {97, "ouyezhe12345"_n, {asset{340'3844, symbol{"PZUSDC",4}}, "pztken.pizza"_n}, {asset{40'3687, symbol{"USDT",4}}, "tethertether"_n} };
-        return liqdtordertbl.get(id, "pizzalend: can't find auction");
     }
 
     static extended_asset wrap( const asset& quantity ) {
@@ -484,6 +505,7 @@ namespace pizzalend {
         for(const auto coll: collaterals){
             if(coll.tokens.get_extended_symbol() == ext_sym_out ) coll_to_get = coll.tokens;
         }
+
         if(loan_to_liquidate.quantity.amount == 0 || loan_to_liquidate < ext_in || coll_to_get.quantity.amount == 0)
             return { 0, ext_sym_out };
 
@@ -496,7 +518,6 @@ namespace pizzalend {
         const double value_out = liq_value * (1 + bonus * 2/3);     // receiving 2/3 of the bonus
         const int64_t out = value_out / coll_price * pow(10, coll_res.anchor.get_symbol().precision());
 
-        // print("\n  In: ", ext_in.quantity, " loan_price: ", loan_price, " coll_price: ", coll_price, " liq_value: ", liq_value, " value_out: ", value_out, " out: ", out);
         if(liq_value > loans_value || coll_to_get.quantity.amount < out)
             return { coll_to_get.quantity.amount, ext_sym_out };   //can't get more than collateral
 
